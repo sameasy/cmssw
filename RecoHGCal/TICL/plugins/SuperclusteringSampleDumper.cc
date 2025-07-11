@@ -1,5 +1,11 @@
 // Original Author:  Theo Cuisset
 //         Created:  Nov 2023
+
+
+// Modified by Gamze Sokmen - gamze.sokmen@cern.ch
+// Changes: Implementation of a new DNN input version (v3) for the superclustering DNN and correcting the seed pT calculation.
+// Date: 07/2025 
+
 /** Produce samples for electron superclustering DNN training in TICL
 
  Pairs of seed-candidate tracksters (in compatible geometric windows) are iterated over, in similar manner as in TracksterLinkingBySuperclustering.
@@ -151,7 +157,7 @@ void SuperclusteringSampleDumper::analyze(const edm::Event& evt, const edm::Even
   std::iota(trackstersIndicesPt.begin(), trackstersIndicesPt.end(), 0);
   std::stable_sort(
       trackstersIndicesPt.begin(), trackstersIndicesPt.end(), [&inputTracksters](unsigned int i1, unsigned int i2) {
-        return (*inputTracksters)[i1].raw_pt() > (*inputTracksters)[i2].raw_pt();
+	return (*inputTracksters)[i1].raw_energy()*std::sin((*inputTracksters)[i1].barycenter().Theta()) > (*inputTracksters)[i2].raw_energy()*std::sin((*inputTracksters)[i2].barycenter().Theta());
       });
 
   // Order of loops are reversed compared to SuperclusteringProducer (here outer is seed, inner is candidate), for performance reasons.
@@ -162,7 +168,7 @@ void SuperclusteringSampleDumper::analyze(const edm::Event& evt, const edm::Even
         trackstersIndicesPt[ts_seed_idx_pt];  // Index of seed trackster in input collection (not in pT sorted collection)
     Trackster const& ts_seed = (*inputTracksters)[ts_seed_idx_input];
 
-    if (ts_seed.raw_pt() < seedPtThreshold_)
+    if (ts_seed.raw_energy()*std::sin(ts_seed.barycenter().Theta()) < seedPtThreshold_)
       break;  // All further seeds will have lower pT than threshold (due to pT sorting)
 
     if (!checkExplainedVarianceRatioCut(ts_seed))
@@ -265,8 +271,8 @@ void SuperclusteringSampleDumper::fillDescriptions(edm::ConfigurationDescription
       ->setComment("Input trackster collection, same as what is used for superclustering inference.");
   desc.add<edm::InputTag>("recoToSimAssociatorCP",
                           edm::InputTag("tracksterSimTracksterAssociationLinkingbyCLUE3D", "recoToSim"));
-  desc.ifValue(edm::ParameterDescription<std::string>("dnnInputsVersion", "v2", true),
-               edm::allowedValues<std::string>("v1", "v2"))
+  desc.ifValue(edm::ParameterDescription<std::string>("dnnInputsVersion", "v3", true),
+               edm::allowedValues<std::string>("v1", "v2", "v3"))
       ->setComment(
           "DNN inputs version tag. Defines which set of features is fed to the DNN. Must match with the actual DNN.");
   // Cuts are intentionally looser than those used for inference in TracksterLinkingBySuperClustering.cpp
